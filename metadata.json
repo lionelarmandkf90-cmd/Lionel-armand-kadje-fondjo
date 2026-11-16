@@ -1,0 +1,6 @@
+{
+  "name": "MaquisPro",
+  "description": "Gestion offline-first et temps réel pour maquis, bars, caves et grillades en FCFA : caisse multi-tables, stock au casier et à l'unité, emballages consignés, dépenses, ardoises et bilan bénéfice net propriétaire.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

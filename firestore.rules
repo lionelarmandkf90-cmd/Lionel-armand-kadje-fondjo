@@ -1,0 +1,217 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- GLOBAL HARDENED HELPERS ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidTimestampsCreate(data) {
+      return data.createdAt is timestamp &&
+             data.createdAt <= request.time &&
+             data.updatedAt is timestamp &&
+             data.updatedAt <= request.time;
+    }
+
+    function isValidTimestampsUpdate(data) {
+      return data.createdAt == existing().createdAt &&
+             data.updatedAt is timestamp &&
+             data.updatedAt <= request.time;
+    }
+
+    // --- ENTITY VALIDATION HELPERS ---
+    function isValidSettings(data) {
+      return data.maquisName is string && data.maquisName.size() >= 1 && data.maquisName.size() <= 60 &&
+             data.ownerPin is string && data.ownerPin.size() >= 4 && data.ownerPin.size() <= 8 &&
+             data.ownerPin.matches('^[0-9]+$') &&
+             data.seededInitialData is bool;
+    }
+
+    function isValidProduit(data) {
+      return data.nom is string && data.nom.size() >= 1 && data.nom.size() <= 80 &&
+             data.categorie is string && data.categorie in ['bieres', 'gazeuses', 'vins_spiritueux', 'plats_grillades', 'divers'] &&
+             data.unitesParCasier is int && data.unitesParCasier >= 1 && data.unitesParCasier <= 100 &&
+             data.prixAchatUnitaire is int && data.prixAchatUnitaire >= 0 && data.prixAchatUnitaire <= 10000000 &&
+             data.prixVenteUnitaire is int && data.prixVenteUnitaire >= 0 && data.prixVenteUnitaire <= 10000000 &&
+             data.stockActuelUnites is int && data.stockActuelUnites >= 0 && data.stockActuelUnites <= 1000000 &&
+             data.seuilAlerteUnites is int && data.seuilAlerteUnites >= 0 && data.seuilAlerteUnites <= 10000 &&
+             data.estConsigne is bool;
+    }
+
+    function isValidEmballage(data) {
+      return data.typeEmballage is string && data.typeEmballage.size() >= 1 && data.typeEmballage.size() <= 80 &&
+             data.casiersVidesEnCave is int && data.casiersVidesEnCave >= 0 && data.casiersVidesEnCave <= 100000 &&
+             data.bouteillesVidesVrac is int && data.bouteillesVidesVrac >= 0 && data.bouteillesVidesVrac <= 100000 &&
+             data.casiersChezFournisseur is int && data.casiersChezFournisseur >= 0 && data.casiersChezFournisseur <= 100000;
+    }
+
+    function isValidVente(data) {
+      return data.numeroTicket is string && data.numeroTicket.size() >= 1 && data.numeroTicket.size() <= 40 &&
+             data.tableNom is string && data.tableNom.size() >= 1 && data.tableNom.size() <= 50 &&
+             data.statut is string && data.statut in ['ouverte', 'payee', 'credit', 'annulee'] &&
+             data.lignes is list && data.lignes.size() >= 1 && data.lignes.size() <= 50 && data.lignes[0] is map &&
+             data.totalVente is int && data.totalVente >= 0 && data.totalVente <= 100000000 &&
+             data.coutTotalAchat is int && data.coutTotalAchat >= 0 && data.coutTotalAchat <= 100000000 &&
+             data.serveurNom is string && data.serveurNom.size() >= 1 && data.serveurNom.size() <= 60 &&
+             (!('modePaiement' in data) || data.modePaiement == null || (data.modePaiement is string && data.modePaiement in ['especes', 'mtn_momo', 'orange_money', 'credit'])) &&
+             (!('clientNom' in data) || data.clientNom == null || (data.clientNom is string && data.clientNom.size() <= 80)) &&
+             (!('clientTel' in data) || data.clientTel == null || (data.clientTel is string && data.clientTel.size() <= 30)) &&
+             (!('closedAt' in data) || data.closedAt == null || (data.closedAt is timestamp && data.closedAt <= request.time)) &&
+             (data.statut != 'credit' || ('clientNom' in data && data.clientNom is string && data.clientNom.size() >= 1));
+    }
+
+    function isValidPerte(data) {
+      return data.produitId is string && isValidId(data.produitId) &&
+             data.produitNom is string && data.produitNom.size() >= 1 && data.produitNom.size() <= 80 &&
+             data.type is string && data.type in ['casse', 'offert', 'perime'] &&
+             data.quantite is int && data.quantite >= 1 && data.quantite <= 10000 &&
+             data.valeurPerdue is int && data.valeurPerdue >= 0 && data.valeurPerdue <= 100000000 &&
+             data.motif is string && data.motif.size() <= 200;
+    }
+
+    function isValidDepense(data) {
+      return data.libelle is string && data.libelle.size() >= 1 && data.libelle.size() <= 120 &&
+             data.categorie is string && data.categorie in ['glace', 'charbon_gaz', 'transport', 'salaire', 'facture', 'autre'] &&
+             data.montant is int && data.montant >= 1 && data.montant <= 100000000;
+    }
+
+    match /users/{userId} {
+      // Subcollection: Settings
+      match /settings/{settingId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId) && isValidId(settingId);
+        allow create: if isOwner(userId) &&
+                         isValidId(settingId) &&
+                         incoming().keys().hasAll(['maquisName', 'ownerPin', 'seededInitialData', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['maquisName', 'ownerPin', 'seededInitialData', 'createdAt', 'updatedAt']) &&
+                         isValidSettings(incoming()) &&
+                         isValidTimestampsCreate(incoming());
+        allow update: if isOwner(userId) &&
+                         isValidId(settingId) &&
+                         isValidSettings(incoming()) &&
+                         isValidTimestampsUpdate(incoming()) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['maquisName', 'ownerPin', 'seededInitialData', 'updatedAt']);
+        allow delete: if false;
+      }
+
+      // Subcollection: Produits
+      match /produits/{produitId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId) && isValidId(produitId);
+        allow create: if isOwner(userId) &&
+                         isValidId(produitId) &&
+                         incoming().keys().hasAll(['nom', 'categorie', 'unitesParCasier', 'prixAchatUnitaire', 'prixVenteUnitaire', 'stockActuelUnites', 'seuilAlerteUnites', 'estConsigne', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['nom', 'categorie', 'unitesParCasier', 'prixAchatUnitaire', 'prixVenteUnitaire', 'stockActuelUnites', 'seuilAlerteUnites', 'estConsigne', 'createdAt', 'updatedAt']) &&
+                         isValidProduit(incoming()) &&
+                         isValidTimestampsCreate(incoming());
+        allow update: if isOwner(userId) &&
+                         isValidId(produitId) &&
+                         isValidProduit(incoming()) &&
+                         isValidTimestampsUpdate(incoming()) &&
+                         (
+                           incoming().diff(existing()).affectedKeys().hasOnly(['stockActuelUnites', 'updatedAt']) ||
+                           incoming().diff(existing()).affectedKeys().hasOnly(['stockActuelUnites', 'prixAchatUnitaire', 'prixVenteUnitaire', 'seuilAlerteUnites', 'nom', 'categorie', 'unitesParCasier', 'estConsigne', 'updatedAt'])
+                         );
+        allow delete: if isOwner(userId) && isValidId(produitId);
+      }
+
+      // Subcollection: Emballages / Consignes
+      match /emballages/{emballageId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId) && isValidId(emballageId);
+        allow create: if isOwner(userId) &&
+                         isValidId(emballageId) &&
+                         incoming().keys().hasAll(['typeEmballage', 'casiersVidesEnCave', 'bouteillesVidesVrac', 'casiersChezFournisseur', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['typeEmballage', 'casiersVidesEnCave', 'bouteillesVidesVrac', 'casiersChezFournisseur', 'createdAt', 'updatedAt']) &&
+                         isValidEmballage(incoming()) &&
+                         isValidTimestampsCreate(incoming());
+        allow update: if isOwner(userId) &&
+                         isValidId(emballageId) &&
+                         isValidEmballage(incoming()) &&
+                         isValidTimestampsUpdate(incoming()) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['typeEmballage', 'casiersVidesEnCave', 'bouteillesVidesVrac', 'casiersChezFournisseur', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(emballageId);
+      }
+
+      // Subcollection: Ventes (avec verrouillage des états terminaux payee/annulee)
+      match /ventes/{venteId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId) && isValidId(venteId);
+        allow create: if isOwner(userId) &&
+                         isValidId(venteId) &&
+                         incoming().keys().hasAll(['numeroTicket', 'tableNom', 'statut', 'lignes', 'totalVente', 'coutTotalAchat', 'serveurNom', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['numeroTicket', 'tableNom', 'statut', 'lignes', 'totalVente', 'coutTotalAchat', 'modePaiement', 'clientNom', 'clientTel', 'serveurNom', 'closedAt', 'createdAt', 'updatedAt']) &&
+                         isValidVente(incoming()) &&
+                         isValidTimestampsCreate(incoming());
+        allow update: if isOwner(userId) &&
+                         isValidId(venteId) &&
+                         isValidVente(incoming()) &&
+                         isValidTimestampsUpdate(incoming()) &&
+                         existing().statut in ['ouverte', 'credit'] &&
+                         incoming().numeroTicket == existing().numeroTicket &&
+                         (
+                           // Action 1: Mettre à jour une table ouverte (ajout/retrait boissons ou encaissement)
+                           (existing().statut == 'ouverte' &&
+                            incoming().diff(existing()).affectedKeys().hasOnly(['lignes', 'totalVente', 'coutTotalAchat', 'statut', 'modePaiement', 'clientNom', 'clientTel', 'closedAt', 'tableNom', 'updatedAt'])) ||
+                           // Action 2: Régler une ardoise (credit -> payee)
+                           (existing().statut == 'credit' &&
+                            incoming().statut == 'payee' &&
+                            incoming().diff(existing()).affectedKeys().hasOnly(['statut', 'modePaiement', 'closedAt', 'updatedAt']))
+                         );
+        allow delete: if false;
+      }
+
+      // Subcollection: Pertes & Casses (Journal immuable)
+      match /pertes/{perteId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId) && isValidId(perteId);
+        allow create: if isOwner(userId) &&
+                         isValidId(perteId) &&
+                         incoming().keys().hasAll(['produitId', 'produitNom', 'type', 'quantite', 'valeurPerdue', 'motif', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['produitId', 'produitNom', 'type', 'quantite', 'valeurPerdue', 'motif', 'createdAt', 'updatedAt']) &&
+                         isValidPerte(incoming()) &&
+                         isValidTimestampsCreate(incoming());
+        allow update, delete: if false;
+      }
+
+      // Subcollection: Dépenses quotidiennes
+      match /depenses/{depenseId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId) && isValidId(depenseId);
+        allow create: if isOwner(userId) &&
+                         isValidId(depenseId) &&
+                         incoming().keys().hasAll(['libelle', 'categorie', 'montant', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['libelle', 'categorie', 'montant', 'createdAt', 'updatedAt']) &&
+                         isValidDepense(incoming()) &&
+                         isValidTimestampsCreate(incoming());
+        allow update: if isOwner(userId) &&
+                         isValidId(depenseId) &&
+                         isValidDepense(incoming()) &&
+                         isValidTimestampsUpdate(incoming()) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['libelle', 'categorie', 'montant', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(depenseId);
+      }
+    }
+  }
+}

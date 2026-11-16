@@ -1,0 +1,182 @@
+{
+  "entities": {
+    "MaquisSettings": {
+      "title": "MaquisSettings",
+      "description": "Configuration du maquis et code PIN propriétaire",
+      "type": "object",
+      "properties": {
+        "maquisName": { "type": "string", "description": "Nom de l'établissement" },
+        "ownerPin": { "type": "string", "description": "Code PIN à 4 chiffres du propriétaire" },
+        "seededInitialData": { "type": "boolean", "description": "Indique si le catalogue initial a été créé" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Date de création (FieldValue.serverTimestamp())" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Date de mise à jour (FieldValue.serverTimestamp())" }
+      },
+      "required": ["maquisName", "ownerPin", "seededInitialData", "createdAt", "updatedAt"]
+    },
+    "Produit": {
+      "title": "Produit",
+      "description": "Produit vendu au casier ou à l'unité avec coût d'achat et stock",
+      "type": "object",
+      "properties": {
+        "nom": { "type": "string", "description": "Nom du produit" },
+        "categorie": {
+          "type": "string",
+          "enum": ["bieres", "gazeuses", "vins_spiritueux", "plats_grillades", "divers"],
+          "description": "Catégorie du produit"
+        },
+        "unitesParCasier": { "type": "integer", "description": "Nombre d'unités par casier (12, 24, 6 ou 1)" },
+        "prixAchatUnitaire": { "type": "integer", "description": "Prix d'achat unitaire en FCFA" },
+        "prixVenteUnitaire": { "type": "integer", "description": "Prix de vente unitaire en FCFA" },
+        "stockActuelUnites": { "type": "integer", "description": "Stock actuel exprimé à la plus petite unité" },
+        "seuilAlerteUnites": { "type": "integer", "description": "Seuil d'alerte de stock critique" },
+        "estConsigne": { "type": "boolean", "description": "Produit soumis à consigne emballage" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Horodatage serveur création" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Horodatage serveur mise à jour" }
+      },
+      "required": [
+        "nom",
+        "categorie",
+        "unitesParCasier",
+        "prixAchatUnitaire",
+        "prixVenteUnitaire",
+        "stockActuelUnites",
+        "seuilAlerteUnites",
+        "estConsigne",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "SuiviEmballage": {
+      "title": "SuiviEmballage",
+      "description": "Suivi des casiers et bouteilles vides consignés",
+      "type": "object",
+      "properties": {
+        "typeEmballage": { "type": "string", "description": "Type de casier ou bouteille consignée" },
+        "casiersVidesEnCave": { "type": "integer", "description": "Nombre de casiers vides disponibles en cave" },
+        "bouteillesVidesVrac": { "type": "integer", "description": "Nombre de bouteilles vides en vrac" },
+        "casiersChezFournisseur": { "type": "integer", "description": "Casiers consignés chez le fournisseur" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "typeEmballage",
+        "casiersVidesEnCave",
+        "bouteillesVidesVrac",
+        "casiersChezFournisseur",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Vente": {
+      "title": "Vente",
+      "description": "Ticket de vente, addition de table ouverte, encaissement ou ardoise client",
+      "type": "object",
+      "properties": {
+        "numeroTicket": { "type": "string", "description": "Numéro de ticket" },
+        "tableNom": { "type": "string", "description": "Nom de la table ou Comptoir" },
+        "statut": {
+          "type": "string",
+          "enum": ["ouverte", "payee", "credit", "annulee"],
+          "description": "Statut de la vente"
+        },
+        "lignes": { "type": "array", "description": "Lignes de vente (bornées à 50 articles max)" },
+        "totalVente": { "type": "integer", "description": "Total de vente en FCFA" },
+        "coutTotalAchat": { "type": "integer", "description": "Coût d'achat total en FCFA" },
+        "modePaiement": {
+          "type": "string",
+          "enum": ["especes", "mtn_momo", "orange_money", "credit"],
+          "description": "Mode de règlement"
+        },
+        "clientNom": { "type": "string", "description": "Nom du client pour une ardoise" },
+        "clientTel": { "type": "string", "description": "Téléphone WhatsApp du client pour une ardoise" },
+        "serveurNom": { "type": "string", "description": "Nom du serveur ou gérant" },
+        "closedAt": { "type": "string", "format": "date-time", "description": "Date d'encaissement" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "numeroTicket",
+        "tableNom",
+        "statut",
+        "lignes",
+        "totalVente",
+        "coutTotalAchat",
+        "serveurNom",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "PerteStock": {
+      "title": "PerteStock",
+      "description": "Déclaration de casse, offert ou produit périmé",
+      "type": "object",
+      "properties": {
+        "produitId": { "type": "string", "description": "ID du produit" },
+        "produitNom": { "type": "string", "description": "Nom du produit" },
+        "type": {
+          "type": "string",
+          "enum": ["casse", "offert", "perime"],
+          "description": "Type de perte"
+        },
+        "quantite": { "type": "integer", "description": "Quantité perdue" },
+        "valeurPerdue": { "type": "integer", "description": "Valeur au coût d'achat en FCFA" },
+        "motif": { "type": "string", "description": "Motif de la perte" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "produitId",
+        "produitNom",
+        "type",
+        "quantite",
+        "valeurPerdue",
+        "motif",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Depense": {
+      "title": "Depense",
+      "description": "Dépense quotidienne d'exploitation (glace, charbon, transport, etc.)",
+      "type": "object",
+      "properties": {
+        "libelle": { "type": "string", "description": "Description de la dépense" },
+        "categorie": {
+          "type": "string",
+          "enum": ["glace", "charbon_gaz", "transport", "salaire", "facture", "autre"],
+          "description": "Catégorie de dépense"
+        },
+        "montant": { "type": "integer", "description": "Montant en FCFA" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["libelle", "categorie", "montant", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/settings/{settingId}": {
+      "schema": { "$ref": "#/entities/MaquisSettings" },
+      "description": "Paramètres et PIN propriétaire du maquis"
+    },
+    "/users/{userId}/produits/{produitId}": {
+      "schema": { "$ref": "#/entities/Produit" },
+      "description": "Catalogue des boissons, plats et stocks"
+    },
+    "/users/{userId}/emballages/{emballageId}": {
+      "schema": { "$ref": "#/entities/SuiviEmballage" },
+      "description": "Suivi des casiers et bouteilles vides consignés"
+    },
+    "/users/{userId}/ventes/{venteId}": {
+      "schema": { "$ref": "#/entities/Vente" },
+      "description": "Tickets de caisse, tables ouvertes et ardoises"
+    },
+    "/users/{userId}/pertes/{perteId}": {
+      "schema": { "$ref": "#/entities/PerteStock" },
+      "description": "Journal des pertes, casses et offerts"
+    },
+    "/users/{userId}/depenses/{depenseId}": {
+      "schema": { "$ref": "#/entities/Depense" },
+      "description": "Dépenses quotidiennes du maquis"
+    }
+  }
+}
